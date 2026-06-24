@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hand Breakout</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-badge">🎮</span>
+        <div>
+          <h1>Hand Breakout</h1>
+          <p>用手势玩一局任天堂风格打砖块</p>
+        </div>
+      </div>
+
+      <div class="hud">
+        <div class="hud-card">
+          <span class="hud-label">Score</span>
+          <strong id="score">0</strong>
+        </div>
+        <div class="hud-card">
+          <span class="hud-label">Level</span>
+          <strong id="level">1</strong>
+        </div>
+        <div class="hud-card">
+          <span class="hud-label">State</span>
+          <strong id="status">LOADING</strong>
+        </div>
+      </div>
+    </header>
+
+    <main class="stage-wrap">
+      <section class="game-panel">
+        <canvas id="gameCanvas" width="960" height="540"></canvas>
+
+        <div id="overlay" class="overlay">
+          <div class="overlay-card">
+            <p class="overlay-kicker">Camera Motion Game</p>
+            <h2 id="overlayTitle">正在加载手势识别…</h2>
+            <p id="overlayText">
+              请允许摄像头权限。张开手开始，握拳暂停，左右移动手来控制挡板。
+            </p>
+            <button id="startButton" type="button">开始游戏</button>
+          </div>
+        </div>
+      </section>
+
+      <aside class="camera-panel">
+        <div class="camera-frame">
+          <video id="inputVideo" autoplay playsinline muted></video>
+          <canvas id="cameraCanvas" width="320" height="240"></canvas>
+          <div class="camera-label">Hand Tracking</div>
+        </div>
+
+        <div class="tips-card">
+          <h3>操作说明</h3>
+          <ul>
+            <li>张开手：开始 / 继续</li>
+            <li>握拳：暂停</li>
+            <li>左右移动手：控制挡板</li>
+          </ul>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>
