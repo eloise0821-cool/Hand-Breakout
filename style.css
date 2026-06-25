@@ -1,14 +1,15 @@
 :root {
-  --bg: #0f172a;
-  --panel: #16213d;
-  --panel-soft: #22325d;
-  --ink: #f8fafc;
-  --muted: #cbd5e1;
-  --accent: #ff4d8d;
-  --accent-2: #ffd93d;
-  --accent-3: #35d0ff;
-  --good: #73f0a8;
-  --shadow: rgba(4, 18, 44, 0.35);
+  --bg: #0d1630;
+  --panel: #20305f;
+  --panel-soft: #314783;
+  --ink: #f8fbff;
+  --muted: #d7e4ff;
+  --accent: #ff5a7d;
+  --accent-2: #ffe35a;
+  --accent-3: #39d8ff;
+  --good: #75f3af;
+  --outline: #ffffff;
+  --shadow: rgba(4, 18, 44, 0.28);
 }
 
 * {
@@ -20,10 +21,24 @@ body {
   min-height: 100vh;
   font-family: "Segoe UI", Arial, sans-serif;
   background:
-    radial-gradient(circle at top left, #304ffe 0%, transparent 32%),
-    radial-gradient(circle at bottom right, #ff4d8d 0%, transparent 28%),
-    linear-gradient(160deg, #071122 0%, #101a38 60%, #0b1020 100%);
+    radial-gradient(circle at top left, rgba(72, 114, 255, 0.95) 0%, transparent 34%),
+    radial-gradient(circle at 85% 12%, rgba(255, 227, 90, 0.65) 0%, transparent 18%),
+    radial-gradient(circle at bottom right, rgba(255, 90, 125, 0.82) 0%, transparent 30%),
+    linear-gradient(160deg, #12245b 0%, #1b2c72 50%, #0b1736 100%);
   color: var(--ink);
+  position: relative;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.06) 2px, transparent 2px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.05) 2px, transparent 2px);
+  background-size: 52px 52px;
+  opacity: 0.18;
 }
 
 .app-shell {
@@ -81,15 +96,48 @@ body {
 .hud-card,
 .tips-card,
 .camera-frame {
-  background: rgba(22, 33, 61, 0.9);
-  border: 3px solid rgba(255, 255, 255, 0.08);
-  border-radius: 22px;
-  box-shadow: 0 18px 40px var(--shadow);
+  background: linear-gradient(180deg, rgba(43, 66, 126, 0.94), rgba(25, 42, 84, 0.96));
+  border: 4px solid rgba(255, 255, 255, 0.96);
+  border-radius: 24px;
+  box-shadow:
+    0 14px 0 rgba(13, 23, 54, 0.35),
+    0 22px 40px var(--shadow);
 }
 
 .hud-card {
   min-width: 110px;
   padding: 12px 16px;
+  position: relative;
+}
+
+.hud-card::before,
+.tips-card::before,
+.camera-frame::before,
+.overlay-card::before {
+  content: "";
+  position: absolute;
+  inset: 6px 8px auto 8px;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.2);
+  pointer-events: none;
+}
+
+.hud-button {
+  appearance: none;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  min-width: 120px;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.hud-button:hover {
+  transform: translateY(-2px);
+}
+
+.hud-button strong {
+  color: var(--accent-2);
 }
 
 .hud-label {
@@ -113,10 +161,13 @@ body {
 
 .game-panel {
   position: relative;
-  border-radius: 30px;
+  border-radius: 34px;
   overflow: hidden;
   background: #071428;
-  box-shadow: 0 24px 48px var(--shadow);
+  border: 5px solid rgba(255, 255, 255, 0.95);
+  box-shadow:
+    0 16px 0 rgba(13, 23, 54, 0.38),
+    0 26px 52px var(--shadow);
 }
 
 #gameCanvas {
@@ -124,7 +175,30 @@ body {
   width: 100%;
   height: auto;
   aspect-ratio: 16 / 9;
-  background: linear-gradient(180deg, #15306b 0%, #0b1634 100%);
+  background: linear-gradient(180deg, #2052dd 0%, #112872 54%, #08142f 100%);
+}
+
+.stage-deco {
+  position: absolute;
+  width: 108px;
+  height: 108px;
+  border-radius: 999px;
+  border: 12px solid rgba(255, 255, 255, 0.16);
+  pointer-events: none;
+  opacity: 0.8;
+}
+
+.deco-left {
+  top: 16px;
+  left: 18px;
+}
+
+.deco-right {
+  right: 18px;
+  bottom: 16px;
+  width: 78px;
+  height: 78px;
+  border-color: rgba(255, 227, 90, 0.24);
 }
 
 .overlay {
@@ -144,12 +218,15 @@ body {
 
 .overlay-card {
   width: min(520px, 100%);
+  position: relative;
   text-align: center;
-  background: linear-gradient(180deg, rgba(32, 51, 98, 0.96), rgba(14, 24, 46, 0.98));
-  border: 3px solid rgba(255, 255, 255, 0.1);
-  border-radius: 28px;
+  background: linear-gradient(180deg, rgba(44, 72, 138, 0.98), rgba(22, 38, 78, 0.98));
+  border: 4px solid rgba(255, 255, 255, 0.98);
+  border-radius: 30px;
   padding: 28px 24px;
-  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.28);
+  box-shadow:
+    0 12px 0 rgba(11, 20, 47, 0.35),
+    0 20px 48px rgba(0, 0, 0, 0.28);
 }
 
 .overlay-kicker {
@@ -182,7 +259,9 @@ body {
   background: linear-gradient(135deg, var(--accent-2), #fff18e);
   cursor: pointer;
   transition: transform 0.15s ease, box-shadow 0.15s ease;
-  box-shadow: 0 10px 20px rgba(255, 217, 61, 0.28);
+  box-shadow:
+    0 6px 0 rgba(172, 128, 8, 0.44),
+    0 12px 22px rgba(255, 217, 61, 0.3);
 }
 
 #startButton:hover {
@@ -231,6 +310,7 @@ body {
 }
 
 .tips-card {
+  position: relative;
   padding: 18px 18px 18px 22px;
 }
 
@@ -243,6 +323,26 @@ body {
   padding-left: 18px;
   color: var(--muted);
   line-height: 1.7;
+}
+
+.tips-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.tips-badges span {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 2px solid rgba(255, 255, 255, 0.18);
+  color: #fff9bf;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
 }
 
 @media (max-width: 1080px) {

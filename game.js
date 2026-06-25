@@ -11,6 +11,8 @@ const overlayEl = document.getElementById("overlay");
 const overlayTitleEl = document.getElementById("overlayTitle");
 const overlayTextEl = document.getElementById("overlayText");
 const startButton = document.getElementById("startButton");
+const audioToggle = document.getElementById("audioToggle");
+const audioLabel = document.getElementById("audioLabel");
 
 const GAME_WIDTH = canvas.width;
 const GAME_HEIGHT = canvas.height;
@@ -62,9 +64,22 @@ const ball = {
 };
 
 let bricks = [];
+let audioContext = null;
+let bgmGainNode = null;
+let bgmTimer = null;
+
+const audioState = {
+  enabled: true,
+  unlocked: false
+};
 
 function setStatus(text) {
   statusEl.textContent = text;
+}
+
+function updateAudioButton() {
+  audioLabel.textContent = audioState.enabled ? "ON" : "OFF";
+  audioToggle.setAttribute("aria-pressed", String(audioState.enabled));
 }
 
 function setOverlay(title, text, buttonText = "开始游戏", showButton = true) {
@@ -115,6 +130,142 @@ function clamp(value, min, max) {
 
 function lerp(start, end, amount) {
   return start + (end - start) * amount;
+}
+
+function ensureAudio() {
+  if (!audioState.enabled) return null;
+  if (!audioContext) {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return null;
+    audioContext = new AudioCtx();
+  }
+
+  if (audioContext.state === "suspended") {
+    audioContext.resume();
+  }
+
+  audioState.unlocked = true;
+  return audioContext;
+}
+
+function playTone(frequency, duration, type = "square", volume = 0.05, when = 0) {
+  const context = ensureAudio();
+  if (!context) return;
+
+  const oscillator = context.createOscillator();
+  const gain = context.createGain();
+  const startAt = context.currentTime + when;
+  const endAt = startAt + duration;
+
+  oscillator.type = type;
+  oscillator.frequency.setValueAtTime(frequency, startAt);
+  gain.gain.setValueAtTime(0.0001, startAt);
+  gain.gain.exponentialRampToValueAtTime(volume, startAt + 0.01);
+  gain.gain.exponentialRampToValueAtTime(0.0001, endAt);
+
+  oscillator.connect(gain);
+  gain.connect(context.destination);
+  oscillator.start(startAt);
+  oscillator.stop(endAt + 0.02);
+}
+
+function playBounceSound() {
+  if (!audioState.enabled) return;
+  playTone(420, 0.07, "square", 0.05);
+}
+
+function playBrickSound() {
+  if (!audioState.enabled) return;
+  playTone(660, 0.05, "square", 0.05);
+  playTone(920, 0.07, "triangle", 0.03, 0.03);
+}
+
+function playLoseSound() {
+  if (!audioState.enabled) return;
+  playTone(320, 0.12, "sawtooth", 0.05);
+  playTone(220, 0.18, "square", 0.05, 0.1);
+}
+
+function playWinSound() {
+  if (!audioState.enabled) return;
+  playTone(523.25, 0.12, "triangle", 0.05);
+  playTone(659.25, 0.12, "triangle", 0.05, 0.12);
+  playTone(783.99, 0.18, "triangle", 0.06, 0.24);
+}
+
+function stopBackgroundMusic() {
+  if (bgmTimer) {
+    clearTimeout(bgmTimer);
+    bgmTimer = null;
+  }
+
+  if (bgmGainNode && audioContext) {
+    bgmGainNode.gain.cancelScheduledValues(audioContext.currentTime);
+    bgmGainNode.gain.setTargetAtTime(0.0001, audioContext.currentTime, 0.06);
+  }
+}
+
+function scheduleBackgroundLoop() {
+  if (!audioState.enabled || state.phase !== "playing") return;
+  const context = ensureAudio();
+  if (!context) return;
+
+  if (!bgmGainNode) {
+    bgmGainNode = context.createGain();
+    bgmGainNode.gain.value = 0.035;
+    bgmGainNode.connect(context.destination);
+  }
+
+  const notes = [523.25, 659.25, 783.99, 659.25, 587.33, 659.25, 493.88, 392];
+  const bass = [130.81, 146.83, 164.81, 146.83];
+  const start = context.currentTime + 0.02;
+
+  notes.forEach((note, index) => {
+    const osc = context.createOscillator();
+    const gain = context.createGain();
+    const noteStart = start + index * 0.22;
+    const noteEnd = noteStart + 0.14;
+
+    osc.type = "square";
+    osc.frequency.setValueAtTime(note, noteStart);
+    gain.gain.setValueAtTime(0.0001, noteStart);
+    gain.gain.linearRampToValueAtTime(0.03, noteStart + 0.015);
+    gain.gain.exponentialRampToValueAtTime(0.0001, noteEnd);
+    osc.connect(gain);
+    gain.connect(bgmGainNode);
+    osc.start(noteStart);
+    osc.stop(noteEnd + 0.02);
+  });
+
+  bass.forEach((note, index) => {
+    const osc = context.createOscillator();
+    const gain = context.createGain();
+    const noteStart = start + index * 0.44;
+    const noteEnd = noteStart + 0.28;
+
+    osc.type = "triangle";
+    osc.frequency.setValueAtTime(note, noteStart);
+    gain.gain.setValueAtTime(0.0001, noteStart);
+    gain.gain.linearRampToValueAtTime(0.022, noteStart + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, noteEnd);
+    osc.connect(gain);
+    gain.connect(bgmGainNode);
+    osc.start(noteStart);
+    osc.stop(noteEnd + 0.02);
+  });
+
+  bgmTimer = setTimeout(scheduleBackgroundLoop, 1760);
+}
+
+function syncBackgroundMusic() {
+  if (!audioState.enabled || state.phase !== "playing") {
+    stopBackgroundMusic();
+    return;
+  }
+
+  if (!bgmTimer) {
+    scheduleBackgroundLoop();
+  }
 }
 
 function createLevel(levelIndex) {
@@ -168,6 +319,7 @@ function startLevel(levelIndex, resumeExisting = false) {
   state.phase = "playing";
   setStatus("PLAY");
   hideOverlay();
+  syncBackgroundMusic();
 }
 
 function startGame() {
@@ -184,6 +336,7 @@ function pauseGame() {
   state.phase = "paused";
   setStatus("PAUSE");
   setOverlay("游戏暂停", "握拳已触发暂停。张开手或点击按钮继续。", "继续游戏");
+  stopBackgroundMusic();
 }
 
 function resumeGame() {
@@ -196,6 +349,7 @@ function resumeGame() {
     state.phase = "playing";
     setStatus("PLAY");
     hideOverlay();
+    syncBackgroundMusic();
   }
 }
 
@@ -211,18 +365,24 @@ function nextLevel() {
   setOverlay(`Level ${state.level + 1}`, "张开手或点击按钮进入下一关。", "下一关");
   createLevel(next);
   state.phase = "paused";
+  playWinSound();
+  stopBackgroundMusic();
 }
 
 function winGame() {
   state.phase = "won";
   setStatus("WIN");
   setOverlay("恭喜通关！", `最终得分 ${state.score}。再来一局？`, "重新开始");
+  playWinSound();
+  stopBackgroundMusic();
 }
 
 function loseGame() {
   state.phase = "lost";
   setStatus("LOSE");
   setOverlay("球掉出去了！", `本局得分 ${state.score}。张开手或点击按钮重开。`, "重新开始");
+  playLoseSound();
+  stopBackgroundMusic();
 }
 
 function updateScore(points) {
@@ -258,6 +418,7 @@ function clearBrick(brick) {
     life: 0.22
   });
   emitParticles(brick.x + brick.width / 2, brick.y + brick.height / 2, brick.color, 12);
+  playBrickSound();
 }
 
 function updatePaddle() {
@@ -274,16 +435,19 @@ function updateBall(delta) {
     ball.x = ball.radius;
     ball.vx = Math.abs(ball.vx);
     ball.glow = 1;
+    playBounceSound();
   } else if (ball.x + ball.radius >= GAME_WIDTH) {
     ball.x = GAME_WIDTH - ball.radius;
     ball.vx = -Math.abs(ball.vx);
     ball.glow = 1;
+    playBounceSound();
   }
 
   if (ball.y - ball.radius <= 0) {
     ball.y = ball.radius;
     ball.vy = Math.abs(ball.vy);
     ball.glow = 1;
+    playBounceSound();
   }
 
   if (
@@ -299,6 +463,7 @@ function updateBall(delta) {
     ball.vy = -Math.abs(ball.speed * (0.82 + Math.abs(hit) * 0.18));
     ball.glow = 1;
     emitParticles(ball.x, ball.y, "#ffffff", 6);
+    playBounceSound();
   }
 
   for (const brick of bricks) {
@@ -321,6 +486,7 @@ function updateBall(delta) {
 
       clearBrick(brick);
       ball.glow = 1;
+      playBounceSound();
       break;
     }
   }
@@ -354,11 +520,16 @@ function updateEffects(delta) {
 
 function drawBackground() {
   const gradient = ctx.createLinearGradient(0, 0, 0, GAME_HEIGHT);
-  gradient.addColorStop(0, "#1e4dd8");
-  gradient.addColorStop(0.58, "#173283");
-  gradient.addColorStop(1, "#09132e");
+  gradient.addColorStop(0, "#3d70ff");
+  gradient.addColorStop(0.46, "#254dc4");
+  gradient.addColorStop(1, "#0b1741");
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+
+  for (let col = 0; col < GAME_WIDTH; col += 96) {
+    ctx.fillStyle = "rgba(255,255,255,0.04)";
+    ctx.fillRect(col, 0, 8, GAME_HEIGHT);
+  }
 
   if (state.flashTimer > 0) {
     ctx.fillStyle = `rgba(255,255,255,${state.flashTimer * 0.28})`;
@@ -366,8 +537,15 @@ function drawBackground() {
   }
 
   for (let i = 0; i < 6; i += 1) {
-    ctx.fillStyle = `rgba(255,255,255,${0.02 + i * 0.005})`;
-    ctx.fillRect(0, 70 + i * 70, GAME_WIDTH, 4);
+    ctx.fillStyle = `rgba(255,255,255,${0.03 + i * 0.008})`;
+    ctx.fillRect(0, 64 + i * 72, GAME_WIDTH, 5);
+  }
+
+  for (let i = 0; i < 5; i += 1) {
+    ctx.fillStyle = "rgba(255,227,90,0.09)";
+    ctx.beginPath();
+    ctx.arc(90 + i * 180, 54 + (i % 2) * 16, 18, 0, Math.PI * 2);
+    ctx.fill();
   }
 }
 
@@ -377,6 +555,11 @@ function drawBricks() {
     ctx.fillStyle = brick.color;
     ctx.beginPath();
     ctx.roundRect(brick.x, brick.y, brick.width, brick.height, 8);
+    ctx.fill();
+
+    ctx.fillStyle = "rgba(8,20,47,0.18)";
+    ctx.beginPath();
+    ctx.roundRect(brick.x, brick.y + brick.height - 6, brick.width, 6, 4);
     ctx.fill();
 
     ctx.fillStyle = "rgba(255,255,255,0.22)";
@@ -402,18 +585,23 @@ function drawBricks() {
 }
 
 function drawPaddle() {
-  ctx.fillStyle = "#1b2339";
+  ctx.fillStyle = "#172445";
   ctx.beginPath();
-  ctx.roundRect(paddle.x, paddle.y + 8, paddle.width, paddle.height, 12);
+  ctx.roundRect(paddle.x, paddle.y + 9, paddle.width, paddle.height, 12);
   ctx.fill();
 
   const gradient = ctx.createLinearGradient(paddle.x, paddle.y, paddle.x + paddle.width, paddle.y);
   gradient.addColorStop(0, "#52e3c2");
-  gradient.addColorStop(0.5, "#ffffff");
-  gradient.addColorStop(1, "#35d0ff");
+  gradient.addColorStop(0.48, "#ffffff");
+  gradient.addColorStop(1, "#3dd7ff");
   ctx.fillStyle = gradient;
   ctx.beginPath();
   ctx.roundRect(paddle.x, paddle.y, paddle.width, paddle.height, 12);
+  ctx.fill();
+
+  ctx.fillStyle = "rgba(255,255,255,0.24)";
+  ctx.beginPath();
+  ctx.roundRect(paddle.x + 10, paddle.y + 3, paddle.width - 20, 5, 4);
   ctx.fill();
 }
 
@@ -651,7 +839,10 @@ async function retryCamera() {
 }
 
 function bindEvents() {
+  updateAudioButton();
+
   startButton.addEventListener("click", () => {
+    ensureAudio();
     if (state.phase === "camera-error") {
       retryCamera();
     } else if (state.phase === "paused") {
@@ -670,6 +861,17 @@ function bindEvents() {
         resumeGame();
       }
     }
+  });
+
+  audioToggle.addEventListener("click", () => {
+    audioState.enabled = !audioState.enabled;
+    if (audioState.enabled) {
+      ensureAudio();
+      syncBackgroundMusic();
+    } else {
+      stopBackgroundMusic();
+    }
+    updateAudioButton();
   });
 }
 

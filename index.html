@@ -30,12 +30,18 @@
           <span class="hud-label">State</span>
           <strong id="status">LOADING</strong>
         </div>
+        <button id="audioToggle" class="hud-card hud-button" type="button" aria-pressed="false">
+          <span class="hud-label">Audio</span>
+          <strong id="audioLabel">ON</strong>
+        </button>
       </div>
     </header>
 
     <main class="stage-wrap">
       <section class="game-panel">
         <canvas id="gameCanvas" width="960" height="540"></canvas>
+        <div class="stage-deco deco-left"></div>
+        <div class="stage-deco deco-right"></div>
 
         <div id="overlay" class="overlay">
           <div class="overlay-card">
@@ -63,6 +69,11 @@
             <li>握拳：暂停</li>
             <li>左右移动手：控制挡板</li>
           </ul>
+          <div class="tips-badges">
+            <span>Bright Arcade</span>
+            <span>Motion Control</span>
+            <span>Chiptune Mood</span>
+          </div>
         </div>
       </aside>
     </main>
