@@ -6,6 +6,7 @@ const cameraCtx = cameraCanvas.getContext("2d");
 
 const scoreEl = document.getElementById("score");
 const levelEl = document.getElementById("level");
+const livesEl = document.getElementById("lives");
 const statusEl = document.getElementById("status");
 const overlayEl = document.getElementById("overlay");
 const overlayTitleEl = document.getElementById("overlayTitle");
@@ -53,6 +54,7 @@ const BASE_PADDLE_WIDTH = 150;
 const LONG_PADDLE_WIDTH = 220;
 const POWERUP_DROP_CHANCE = 0.24;
 const POWERUP_FALL_SPEED = 190;
+const MAX_LIVES = 5;
 const POWERUP_TYPES = [
   { type: "paddle", label: "P", color: "#7cf0b2", duration: 12 },
   { type: "fireball", label: "F", color: "#ff8b5e", duration: 10 }
@@ -61,6 +63,7 @@ const POWERUP_TYPES = [
 const state = {
   phase: "loading",
   score: 0,
+  lives: MAX_LIVES,
   level: 0,
   combo: 0,
   targetPaddleX: GAME_WIDTH / 2,
@@ -115,6 +118,10 @@ const audioState = {
 
 function setStatus(text) {
   statusEl.textContent = text;
+}
+
+function updateLivesDisplay() {
+  livesEl.textContent = String(state.lives);
 }
 
 function updateAudioButton() {
@@ -435,7 +442,9 @@ function startLevel(levelIndex, resumeExisting = false) {
 
 function startGame() {
   state.score = 0;
+  state.lives = MAX_LIVES;
   scoreEl.textContent = "0";
+  updateLivesDisplay();
   state.particles = [];
   state.clearEffects = [];
   resetRoundEffects();
@@ -493,6 +502,24 @@ function loseGame() {
   state.phase = "lost";
   setStatus("LOSE");
   setOverlay("球掉出去了！", `本局得分 ${state.score}。张开手或点击按钮重开。`, "重新开始");
+  playLoseSound();
+  stopBackgroundMusic();
+}
+
+function loseLife() {
+  state.lives -= 1;
+  updateLivesDisplay();
+
+  if (state.lives <= 0) {
+    loseGame();
+    return;
+  }
+
+  state.phase = "paused";
+  setStatus("LIFE");
+  resetRoundEffects();
+  resetBall(true);
+  setOverlay("还没结束！", `还剩 ${state.lives} 次机会。张开手或点击按钮继续。`, "继续");
   playLoseSound();
   stopBackgroundMusic();
 }
@@ -614,7 +641,7 @@ function updateBall(delta) {
   }
 
   if (ball.y - ball.radius > GAME_HEIGHT) {
-    loseGame();
+    loseLife();
   }
 
   if (bricks.every((brick) => !brick.alive)) {
@@ -1096,6 +1123,7 @@ function bindEvents() {
 
 async function init() {
   bindEvents();
+  updateLivesDisplay();
   render();
   requestAnimationFrame(gameLoop);
 
