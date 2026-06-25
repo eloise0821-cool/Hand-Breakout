@@ -23,6 +23,15 @@ const LEVELS = [
   { rows: 6, cols: 10, speed: 420 }
 ];
 
+const BASE_PADDLE_WIDTH = 150;
+const LONG_PADDLE_WIDTH = 220;
+const POWERUP_DROP_CHANCE = 0.24;
+const POWERUP_FALL_SPEED = 190;
+const POWERUP_TYPES = [
+  { type: "paddle", label: "P", color: "#7cf0b2", duration: 12 },
+  { type: "fireball", label: "F", color: "#ff8b5e", duration: 10 }
+];
+
 const state = {
   phase: "loading",
   score: 0,
@@ -36,6 +45,11 @@ const state = {
   canTriggerFist: true,
   particles: [],
   clearEffects: [],
+  powerUps: [],
+  activeEffects: {
+    paddle: 0,
+    fireball: 0
+  },
   flashTimer: 0,
   lastTime: 0,
   streamActive: false,
@@ -46,7 +60,7 @@ const state = {
 let handTracker = null;
 
 const paddle = {
-  width: 150,
+  width: BASE_PADDLE_WIDTH,
   height: 18,
   x: GAME_WIDTH / 2 - 75,
   y: GAME_HEIGHT - 52,
@@ -268,6 +282,53 @@ function syncBackgroundMusic() {
   }
 }
 
+function getPowerUpConfig(type) {
+  return POWERUP_TYPES.find((powerUp) => powerUp.type === type);
+}
+
+function hasActiveEffect(type) {
+  return state.activeEffects[type] > 0;
+}
+
+function resetRoundEffects() {
+  state.powerUps = [];
+  state.activeEffects.paddle = 0;
+  state.activeEffects.fireball = 0;
+  paddle.width = BASE_PADDLE_WIDTH;
+  paddle.x = clamp(paddle.x, 24, GAME_WIDTH - paddle.width - 24);
+}
+
+function maybeSpawnPowerUp(brick) {
+  if (Math.random() > POWERUP_DROP_CHANCE) return;
+
+  const config = POWERUP_TYPES[Math.floor(Math.random() * POWERUP_TYPES.length)];
+  state.powerUps.push({
+    type: config.type,
+    label: config.label,
+    color: config.color,
+    x: brick.x + brick.width / 2,
+    y: brick.y + brick.height / 2,
+    vy: POWERUP_FALL_SPEED,
+    size: 18
+  });
+}
+
+function activatePowerUp(type) {
+  const config = getPowerUpConfig(type);
+  if (!config) return;
+
+  state.activeEffects[type] = config.duration;
+
+  if (type === "paddle") {
+    paddle.width = LONG_PADDLE_WIDTH;
+    paddle.x = clamp(paddle.x, 24, GAME_WIDTH - paddle.width - 24);
+  } else if (type === "fireball") {
+    ball.glow = 1.4;
+  }
+
+  emitParticles(paddle.x + paddle.width / 2, paddle.y, config.color, 14);
+}
+
 function createLevel(levelIndex) {
   const config = LEVELS[levelIndex];
   const marginX = 72;
@@ -293,6 +354,7 @@ function createLevel(levelIndex) {
     }
   }
 
+  resetRoundEffects();
   ball.speed = config.speed;
   resetBall(true);
   levelEl.textContent = String(levelIndex + 1);
@@ -327,6 +389,7 @@ function startGame() {
   scoreEl.textContent = "0";
   state.particles = [];
   state.clearEffects = [];
+  resetRoundEffects();
   createLevel(0);
   startLevel(0, true);
 }
@@ -418,6 +481,7 @@ function clearBrick(brick) {
     life: 0.22
   });
   emitParticles(brick.x + brick.width / 2, brick.y + brick.height / 2, brick.color, 12);
+  maybeSpawnPowerUp(brick);
   playBrickSound();
 }
 
@@ -429,7 +493,9 @@ function updatePaddle() {
 function updateBall(delta) {
   ball.x += ball.vx * delta;
   ball.y += ball.vy * delta;
-  ball.glow = Math.max(0, ball.glow - delta * 3);
+  ball.glow = hasActiveEffect("fireball")
+    ? Math.max(0.8, ball.glow - delta * 1.5)
+    : Math.max(0, ball.glow - delta * 3);
 
   if (ball.x - ball.radius <= 0) {
     ball.x = ball.radius;
@@ -475,6 +541,13 @@ function updateBall(delta) {
     const dy = ball.y - closestY;
 
     if (dx * dx + dy * dy <= ball.radius * ball.radius) {
+      if (hasActiveEffect("fireball")) {
+        clearBrick(brick);
+        ball.glow = 1.6;
+        emitParticles(ball.x, ball.y, "#ff8b5e", 8);
+        continue;
+      }
+
       const overlapX = Math.min(Math.abs(ball.x - brick.x), Math.abs(ball.x - (brick.x + brick.width)));
       const overlapY = Math.min(Math.abs(ball.y - brick.y), Math.abs(ball.y - (brick.y + brick.height)));
 
@@ -500,7 +573,7 @@ function updateBall(delta) {
   }
 }
 
-function updateEffects(delta) {
+function updateEffects(delta, gameplayActive) {
   state.clearEffects = state.clearEffects.filter((effect) => {
     effect.life -= delta;
     return effect.life > 0;
@@ -514,6 +587,39 @@ function updateEffects(delta) {
     particle.vy *= 0.98;
     return particle.life > 0;
   });
+
+  if (gameplayActive) {
+    state.powerUps = state.powerUps.filter((powerUp) => {
+      powerUp.y += powerUp.vy * delta;
+
+      const hitPaddle =
+        powerUp.y + powerUp.size >= paddle.y &&
+        powerUp.y - powerUp.size <= paddle.y + paddle.height &&
+        powerUp.x >= paddle.x &&
+        powerUp.x <= paddle.x + paddle.width;
+
+      if (hitPaddle) {
+        activatePowerUp(powerUp.type);
+        playTone(740, 0.08, "triangle", 0.05);
+        return false;
+      }
+
+      return powerUp.y - powerUp.size <= GAME_HEIGHT;
+    });
+
+    Object.keys(state.activeEffects).forEach((effectType) => {
+      if (state.activeEffects[effectType] <= 0) return;
+
+      state.activeEffects[effectType] = Math.max(0, state.activeEffects[effectType] - delta);
+
+      if (state.activeEffects[effectType] === 0) {
+        if (effectType === "paddle") {
+          paddle.width = BASE_PADDLE_WIDTH;
+          paddle.x = clamp(paddle.x, 24, GAME_WIDTH - paddle.width - 24);
+        }
+      }
+    });
+  }
 
   state.flashTimer = Math.max(0, state.flashTimer - delta);
 }
@@ -606,17 +712,29 @@ function drawPaddle() {
 }
 
 function drawBall() {
+  if (hasActiveEffect("fireball")) {
+    const flameGlow = ctx.createRadialGradient(ball.x, ball.y, ball.radius * 0.2, ball.x, ball.y, ball.radius + 26);
+    flameGlow.addColorStop(0, "rgba(255,255,255,0.98)");
+    flameGlow.addColorStop(0.35, "rgba(255,213,79,0.92)");
+    flameGlow.addColorStop(0.65, "rgba(255,110,54,0.7)");
+    flameGlow.addColorStop(1, "rgba(255,110,54,0)");
+    ctx.fillStyle = flameGlow;
+    ctx.beginPath();
+    ctx.arc(ball.x, ball.y, ball.radius + 26, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
   const glowRadius = ball.radius + ball.glow * 18;
   const glow = ctx.createRadialGradient(ball.x, ball.y, ball.radius * 0.25, ball.x, ball.y, glowRadius);
   glow.addColorStop(0, "rgba(255,255,255,0.95)");
-  glow.addColorStop(0.4, "rgba(255,217,61,0.85)");
-  glow.addColorStop(1, "rgba(255,217,61,0)");
+  glow.addColorStop(0.4, hasActiveEffect("fireball") ? "rgba(255,140,70,0.9)" : "rgba(255,217,61,0.85)");
+  glow.addColorStop(1, hasActiveEffect("fireball") ? "rgba(255,110,54,0)" : "rgba(255,217,61,0)");
   ctx.fillStyle = glow;
   ctx.beginPath();
   ctx.arc(ball.x, ball.y, glowRadius, 0, Math.PI * 2);
   ctx.fill();
 
-  ctx.fillStyle = "#fff7cc";
+  ctx.fillStyle = hasActiveEffect("fireball") ? "#fff2d1" : "#fff7cc";
   ctx.beginPath();
   ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
   ctx.fill();
@@ -629,6 +747,56 @@ function drawParticles() {
     ctx.fillRect(particle.x, particle.y, particle.size, particle.size);
   }
   ctx.globalAlpha = 1;
+}
+
+function drawPowerUps() {
+  for (const powerUp of state.powerUps) {
+    ctx.fillStyle = "rgba(10,21,46,0.28)";
+    ctx.beginPath();
+    ctx.roundRect(powerUp.x - 18, powerUp.y - 12 + 5, 36, 24, 10);
+    ctx.fill();
+
+    ctx.fillStyle = powerUp.color;
+    ctx.beginPath();
+    ctx.roundRect(powerUp.x - 18, powerUp.y - 12, 36, 24, 10);
+    ctx.fill();
+
+    ctx.fillStyle = "rgba(255,255,255,0.22)";
+    ctx.beginPath();
+    ctx.roundRect(powerUp.x - 13, powerUp.y - 8, 26, 5, 4);
+    ctx.fill();
+
+    ctx.fillStyle = "#0b1736";
+    ctx.font = "700 16px Segoe UI";
+    ctx.textAlign = "center";
+    ctx.fillText(powerUp.label, powerUp.x, powerUp.y + 5);
+  }
+  ctx.textAlign = "start";
+}
+
+function drawActiveEffects() {
+  const activeEntries = POWERUP_TYPES.filter((powerUp) => state.activeEffects[powerUp.type] > 0);
+  if (activeEntries.length === 0) return;
+
+  const panelX = GAME_WIDTH - 248;
+  const panelY = GAME_HEIGHT - 120;
+  const panelHeight = 32 + activeEntries.length * 24;
+
+  ctx.fillStyle = "rgba(255,255,255,0.12)";
+  ctx.beginPath();
+  ctx.roundRect(panelX, panelY, 220, panelHeight, 18);
+  ctx.fill();
+
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "700 16px Segoe UI";
+  ctx.fillText("Power-Ups", panelX + 18, panelY + 22);
+
+  activeEntries.forEach((entry, index) => {
+    const seconds = state.activeEffects[entry.type];
+    ctx.fillStyle = entry.color;
+    ctx.font = "700 14px Segoe UI";
+    ctx.fillText(`${entry.label} ${Math.ceil(seconds)}s`, panelX + 18, panelY + 46 + index * 22);
+  });
 }
 
 function drawHandHint() {
@@ -664,7 +832,9 @@ function render() {
   drawPaddle();
   drawBall();
   drawParticles();
+  drawPowerUps();
   drawHandHint();
+  drawActiveEffects();
 }
 
 function gameLoop(timestamp) {
@@ -681,7 +851,7 @@ function gameLoop(timestamp) {
     updateBall(delta);
   }
 
-  updateEffects(delta);
+  updateEffects(delta, state.phase === "playing");
   render();
   requestAnimationFrame(gameLoop);
 }
