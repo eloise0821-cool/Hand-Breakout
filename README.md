@@ -1,6 +1,6 @@
 # Hand Breakout 🎮
 
-A Nintendo-style Breakout game controlled by hand gestures in the browser.
+A game controlled by hand gestures in the browser.
 
 ## Features
 
