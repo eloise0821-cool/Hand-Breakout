@@ -41,6 +41,8 @@ const state = {
   trackingLoopStarted: false
 };
 
+let handTracker = null;
+
 const paddle = {
   width: 150,
   height: 18,
@@ -71,6 +73,36 @@ function setOverlay(title, text, buttonText = "开始游戏", showButton = true)
   startButton.textContent = buttonText;
   startButton.style.display = showButton ? "inline-flex" : "none";
   overlayEl.classList.remove("hidden");
+}
+
+function getCameraErrorMessage(error) {
+  if (!error) {
+    return "摄像头启动失败，请重试。";
+  }
+
+  const name = error.name || "";
+
+  if (name === "NotAllowedError" || name === "PermissionDeniedError") {
+    return "浏览器没有获得摄像头权限。请点击地址栏附近的相机图标，将此站点的摄像头权限改为“允许”，然后重试。";
+  }
+
+  if (name === "NotFoundError" || name === "DevicesNotFoundError") {
+    return "没有找到可用摄像头。请确认你的电脑已连接并启用了摄像头。";
+  }
+
+  if (name === "NotReadableError" || name === "TrackStartError") {
+    return "摄像头当前可能正被别的应用占用。请关闭微信、腾讯会议、相机等可能占用摄像头的软件后再试。";
+  }
+
+  if (name === "OverconstrainedError" || name === "ConstraintNotSatisfiedError") {
+    return "当前摄像头分辨率请求不兼容，稍后我可以改成更宽松的兼容模式。";
+  }
+
+  if (name === "SecurityError") {
+    return "当前页面环境不允许调用摄像头。请使用支持 HTTPS 的正常浏览器页面打开。";
+  }
+
+  return `${error.message || "未知摄像头错误"}。请重试。`;
 }
 
 function hideOverlay() {
@@ -558,6 +590,17 @@ async function startTrackingLoop(hands) {
   requestAnimationFrame(tick);
 }
 
+async function requestCameraStream() {
+  return navigator.mediaDevices.getUserMedia({
+    video: {
+      width: { ideal: 640 },
+      height: { ideal: 480 },
+      facingMode: "user"
+    },
+    audio: false
+  });
+}
+
 async function initCamera() {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     throw new Error("当前浏览器不支持摄像头调用。");
@@ -567,40 +610,50 @@ async function initCamera() {
     throw new Error("手部识别模型没有正确加载。");
   }
 
-  const hands = new Hands({
+  handTracker = new Hands({
     locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
   });
 
-  hands.setOptions({
+  handTracker.setOptions({
     maxNumHands: 1,
     modelComplexity: 1,
     minDetectionConfidence: 0.6,
     minTrackingConfidence: 0.6
   });
 
-  hands.onResults(handleHandResults);
+  handTracker.onResults(handleHandResults);
   state.trackerReady = true;
 
-  const stream = await navigator.mediaDevices.getUserMedia({
-    video: {
-      width: { ideal: 640 },
-      height: { ideal: 480 },
-      facingMode: "user"
-    },
-    audio: false
-  });
+  const stream = await requestCameraStream();
 
   video.srcObject = stream;
   await video.play();
   state.streamActive = true;
 
-  await startTrackingLoop(hands);
+  await startTrackingLoop(handTracker);
+}
+
+async function retryCamera() {
+  state.phase = "loading";
+  setStatus("LOADING");
+  setOverlay("重新连接摄像头…", "请在浏览器弹窗中允许摄像头权限。", "连接中", false);
+
+  try {
+    await initCamera();
+    state.phase = "ready";
+    setStatus("READY");
+    setOverlay("挥挥手，准备开打！", "允许摄像头后，张开手开始；握拳暂停；左右移动手来控制挡板。");
+  } catch (error) {
+    state.phase = "camera-error";
+    setStatus("ERROR");
+    setOverlay("摄像头启动失败", getCameraErrorMessage(error), "重试");
+  }
 }
 
 function bindEvents() {
   startButton.addEventListener("click", () => {
     if (state.phase === "camera-error") {
-      window.location.reload();
+      retryCamera();
     } else if (state.phase === "paused") {
       resumeGame();
     } else {
@@ -633,11 +686,7 @@ async function init() {
   } catch (error) {
     state.phase = "camera-error";
     setStatus("ERROR");
-    setOverlay(
-      "摄像头启动失败",
-      `${error.message} 如果浏览器拦截了本地文件摄像头权限，试试用本地静态服务打开这个页面。`,
-      "重试"
-    );
+    setOverlay("摄像头启动失败", getCameraErrorMessage(error), "重试");
   }
 }
 
