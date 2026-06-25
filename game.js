@@ -18,9 +18,35 @@ const GAME_WIDTH = canvas.width;
 const GAME_HEIGHT = canvas.height;
 
 const LEVELS = [
-  { rows: 4, cols: 8, speed: 320 },
-  { rows: 5, cols: 10, speed: 360 },
-  { rows: 6, cols: 10, speed: 420 }
+  {
+    speed: 320,
+    pattern: [
+      "0001111111000",
+      "0000111110000",
+      "0000011100000"
+    ]
+  },
+  {
+    speed: 360,
+    pattern: [
+      "0001111111000",
+      "0011000001100",
+      "0110110110110",
+      "0011011101100",
+      "0001111111000"
+    ]
+  },
+  {
+    speed: 420,
+    pattern: [
+      "0000111110000",
+      "0001100011000",
+      "0011010101100",
+      "0110001000110",
+      "0011011101100",
+      "0001111111000"
+    ]
+  }
 ];
 
 const BASE_PADDLE_WIDTH = 150;
@@ -226,24 +252,25 @@ function scheduleBackgroundLoop() {
 
   if (!bgmGainNode) {
     bgmGainNode = context.createGain();
-    bgmGainNode.gain.value = 0.035;
+    bgmGainNode.gain.value = 0.04;
     bgmGainNode.connect(context.destination);
   }
 
-  const notes = [523.25, 659.25, 783.99, 659.25, 587.33, 659.25, 493.88, 392];
-  const bass = [130.81, 146.83, 164.81, 146.83];
+  const notes = [659.25, 783.99, 880, 783.99, 698.46, 783.99, 587.33, 659.25];
+  const bass = [164.81, 164.81, 130.81, 146.83];
+  const pulse = [1046.5, 1174.66, 1046.5, 987.77, 880, 987.77, 783.99, 880];
   const start = context.currentTime + 0.02;
 
   notes.forEach((note, index) => {
     const osc = context.createOscillator();
     const gain = context.createGain();
-    const noteStart = start + index * 0.22;
-    const noteEnd = noteStart + 0.14;
+    const noteStart = start + index * 0.18;
+    const noteEnd = noteStart + 0.11;
 
     osc.type = "square";
     osc.frequency.setValueAtTime(note, noteStart);
     gain.gain.setValueAtTime(0.0001, noteStart);
-    gain.gain.linearRampToValueAtTime(0.03, noteStart + 0.015);
+    gain.gain.linearRampToValueAtTime(0.034, noteStart + 0.01);
     gain.gain.exponentialRampToValueAtTime(0.0001, noteEnd);
     osc.connect(gain);
     gain.connect(bgmGainNode);
@@ -254,13 +281,13 @@ function scheduleBackgroundLoop() {
   bass.forEach((note, index) => {
     const osc = context.createOscillator();
     const gain = context.createGain();
-    const noteStart = start + index * 0.44;
-    const noteEnd = noteStart + 0.28;
+    const noteStart = start + index * 0.36;
+    const noteEnd = noteStart + 0.24;
 
     osc.type = "triangle";
     osc.frequency.setValueAtTime(note, noteStart);
     gain.gain.setValueAtTime(0.0001, noteStart);
-    gain.gain.linearRampToValueAtTime(0.022, noteStart + 0.02);
+    gain.gain.linearRampToValueAtTime(0.026, noteStart + 0.015);
     gain.gain.exponentialRampToValueAtTime(0.0001, noteEnd);
     osc.connect(gain);
     gain.connect(bgmGainNode);
@@ -268,7 +295,24 @@ function scheduleBackgroundLoop() {
     osc.stop(noteEnd + 0.02);
   });
 
-  bgmTimer = setTimeout(scheduleBackgroundLoop, 1760);
+  pulse.forEach((note, index) => {
+    const osc = context.createOscillator();
+    const gain = context.createGain();
+    const noteStart = start + index * 0.18 + 0.09;
+    const noteEnd = noteStart + 0.06;
+
+    osc.type = "square";
+    osc.frequency.setValueAtTime(note, noteStart);
+    gain.gain.setValueAtTime(0.0001, noteStart);
+    gain.gain.linearRampToValueAtTime(0.012, noteStart + 0.008);
+    gain.gain.exponentialRampToValueAtTime(0.0001, noteEnd);
+    osc.connect(gain);
+    gain.connect(bgmGainNode);
+    osc.start(noteStart);
+    osc.stop(noteEnd + 0.02);
+  });
+
+  bgmTimer = setTimeout(scheduleBackgroundLoop, 1440);
 }
 
 function syncBackgroundMusic() {
@@ -331,18 +375,23 @@ function activatePowerUp(type) {
 
 function createLevel(levelIndex) {
   const config = LEVELS[levelIndex];
-  const marginX = 72;
+  const pattern = config.pattern;
+  const rows = pattern.length;
+  const cols = pattern[0].length;
+  const marginX = 110;
   const topOffset = 88;
   const gap = 10;
   const totalWidth = GAME_WIDTH - marginX * 2;
-  const brickWidth = (totalWidth - gap * (config.cols - 1)) / config.cols;
+  const brickWidth = (totalWidth - gap * (cols - 1)) / cols;
   const brickHeight = 24;
   const palette = ["#ff5c7a", "#ffd93d", "#52e3c2", "#4cc9ff", "#b388ff", "#ff9f68"];
 
   bricks = [];
 
-  for (let row = 0; row < config.rows; row += 1) {
-    for (let col = 0; col < config.cols; col += 1) {
+  for (let row = 0; row < rows; row += 1) {
+    for (let col = 0; col < cols; col += 1) {
+      if (pattern[row][col] !== "1") continue;
+
       bricks.push({
         x: marginX + col * (brickWidth + gap),
         y: topOffset + row * (brickHeight + gap),
