@@ -121,6 +121,7 @@ function setStatus(text) {
 }
 
 function updateLivesDisplay() {
+  if (!livesEl) return;
   livesEl.textContent = String(state.lives);
 }
 
@@ -642,6 +643,7 @@ function updateBall(delta) {
 
   if (ball.y - ball.radius > GAME_HEIGHT) {
     loseLife();
+    return;
   }
 
   if (bricks.every((brick) => !brick.alive)) {
