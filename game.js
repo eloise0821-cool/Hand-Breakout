@@ -22,30 +22,30 @@ const LEVELS = [
   {
     speed: 320,
     pattern: [
-      "0001111111000",
-      "0000111110000",
-      "0000011100000"
+      "001111100",
+      "000111000",
+      "000010000"
     ]
   },
   {
     speed: 360,
     pattern: [
-      "0001111111000",
-      "0011000001100",
-      "0110110110110",
-      "0011011101100",
-      "0001111111000"
+      "001111100",
+      "011000110",
+      "110101011",
+      "011111110",
+      "001111100"
     ]
   },
   {
     speed: 420,
     pattern: [
-      "0000111110000",
-      "0001100011000",
-      "0011010101100",
-      "0110001000110",
-      "0011011101100",
-      "0001111111000"
+      "001111100",
+      "011000110",
+      "110101011",
+      "110010011",
+      "011111110",
+      "001111100"
     ]
   }
 ];
@@ -386,12 +386,12 @@ function createLevel(levelIndex) {
   const pattern = config.pattern;
   const rows = pattern.length;
   const cols = pattern[0].length;
-  const marginX = 110;
+  const marginX = 124;
   const topOffset = 88;
-  const gap = 10;
+  const gap = 12;
   const totalWidth = GAME_WIDTH - marginX * 2;
   const brickWidth = (totalWidth - gap * (cols - 1)) / cols;
-  const brickHeight = 24;
+  const brickHeight = 34;
   const palette = ["#ff5c7a", "#ffd93d", "#52e3c2", "#4cc9ff", "#b388ff", "#ff9f68"];
 
   bricks = [];
